@@ -10,12 +10,11 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { Editor } from "./screens/Editor";
 import { Feed } from "./screens/Feed";
 import { KitchenSink } from "./screens/KitchenSink";
 import { Playground } from "./screens/Playground";
 
-const TABS = ["Kitchen Sink", "Playground", "Feed", "Editor"] as const;
+const TABS = ["Kitchen Sink", "Playground", "Feed"] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -41,7 +40,6 @@ export default function App() {
         {tab === "Kitchen Sink" && <KitchenSink />}
         {tab === "Playground" && <Playground />}
         {tab === "Feed" && <Feed />}
-        {tab === "Editor" && <Editor />}
       </SafeAreaView>
     </GestureHandlerRootView>
   );

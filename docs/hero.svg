@@ -1,4 +1,4 @@
-<svg width="1200" height="420" viewBox="0 0 1200 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="react-native-jet-markdown — native markdown viewer and WYSIWYG editor for React Native">
+<svg width="1200" height="420" viewBox="0 0 1200 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="react-native-jet-markdown — native markdown viewer for React Native">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="420" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#0b1020"/>
@@ -32,7 +32,7 @@
 
   <!-- Title block -->
   <text x="72" y="132" class="sans" font-size="42" font-weight="800" fill="#f8fafc" letter-spacing="-1">react-native-<tspan fill="url(#accent)">jet</tspan>-markdown</text>
-  <text x="72" y="170" class="sans" font-size="19" fill="#94a3b8">Native markdown viewer &#38; WYSIWYG editor.</text>
+  <text x="72" y="170" class="sans" font-size="19" fill="#94a3b8">Native markdown viewer for React Native.</text>
   <text x="72" y="196" class="sans" font-size="19" fill="#94a3b8">No WebView. No JS layout. Just native views.</text>
 
   <!-- Feature chips -->
@@ -51,8 +51,8 @@
   <g class="sans">
     <text x="72" y="316" font-size="30" font-weight="800" fill="#5eead4">35 &#181;s</text>
     <text x="72" y="340" font-size="14" fill="#7c8aa5">to parse a feed post</text>
-    <text x="252" y="316" font-size="30" font-weight="800" fill="#7dd3fc">5 ms</text>
-    <text x="252" y="340" font-size="14" fill="#7c8aa5">to open 160 KB in the editor</text>
+    <text x="252" y="316" font-size="30" font-weight="800" fill="#7dd3fc">4 ms</text>
+    <text x="252" y="340" font-size="14" fill="#7c8aa5">to parse a 160 KB document</text>
     <text x="452" y="316" font-size="30" font-weight="800" fill="#c4b5fd">60 fps</text>
     <text x="452" y="340" font-size="14" fill="#7c8aa5">through a 500-item feed</text>
   </g>

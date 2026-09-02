@@ -5,7 +5,6 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.module.model.ReactModuleInfoProvider
 import com.facebook.react.uimanager.ViewManager
-import com.jetmarkdown.editor.JetMarkdownEditorManager
 
 class JetMarkdownViewPackage : BaseReactPackage() {
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
@@ -13,7 +12,7 @@ class JetMarkdownViewPackage : BaseReactPackage() {
     // font/color resolution must work from the very first measure. The view
     // managers re-install with the themed context on view creation.
     com.jetmarkdown.style.PlatformColorResolver.install(reactContext)
-    return listOf(JetMarkdownViewManager(), JetMarkdownEditorManager())
+    return listOf(JetMarkdownViewManager())
   }
 
   override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? = null

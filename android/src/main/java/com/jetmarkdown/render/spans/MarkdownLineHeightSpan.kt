@@ -1,26 +1,15 @@
 package com.jetmarkdown.render.spans
 
 import android.graphics.Paint
-import android.text.TextPaint
 import android.text.style.LineHeightSpan
-import android.text.style.MetricAffectingSpan
 import kotlin.math.ceil
 import kotlin.math.floor
 
 /**
  * React Native's lineHeight semantics: the line box is exactly [heightPx]
- * tall with glyphs centered (mirrors RN's CustomLineHeightSpan). Extends
- * MetricAffectingSpan (a no-op there) so DynamicLayout — the editor —
- * reflows when the span is attached; plain LineHeightSpan is not an
- * UpdateLayout span.
+ * tall with glyphs centered (mirrors RN's CustomLineHeightSpan).
  */
-open class MarkdownLineHeightSpan(private val heightPx: Int) :
-  MetricAffectingSpan(),
-  LineHeightSpan {
-  override fun updateMeasureState(paint: TextPaint) = Unit
-
-  override fun updateDrawState(paint: TextPaint) = Unit
-
+class MarkdownLineHeightSpan(private val heightPx: Int) : LineHeightSpan {
   override fun chooseHeight(
     text: CharSequence,
     start: Int,

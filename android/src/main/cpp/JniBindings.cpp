@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "core/AstSerializer.h"
-#include "core/EditorRuns.h"
 #include "core/Parser.h"
 #include "react/JetMarkdownMeasurer.h"
 
@@ -84,111 +83,6 @@ Java_com_jetmarkdown_JetMarkdownNative_parse(JNIEnv* env, jclass, jbyteArray mar
   const std::string input = toStdString(env, markdown);
   const auto document = jetmarkdown::parseMarkdown(input);
   const std::vector<uint8_t> bytes = jetmarkdown::serializeAst(document->root);
-  return toByteArray(env, bytes.data(), bytes.size());
-}
-
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_jetmarkdown_JetMarkdownNative_markdownFromEditorContent(
-    JNIEnv* env,
-    jclass,
-    jbyteArray text,
-    jintArray runs,
-    jintArray lineBlocks,
-    jintArray linkRanges,
-    jbyteArray linkUrls) {
-  std::vector<jetmarkdown::StyledRun> styledRuns;
-  if (runs != nullptr) {
-    const jsize length = env->GetArrayLength(runs);
-    std::vector<jint> values(static_cast<size_t>(length));
-    if (length > 0) {
-      env->GetIntArrayRegion(runs, 0, length, values.data());
-    }
-    for (jsize i = 0; i + 2 < length; i += 3) {
-      styledRuns.push_back(
-          {static_cast<uint32_t>(values[i]),
-           static_cast<uint32_t>(values[i + 1]),
-           static_cast<uint32_t>(values[i + 2])});
-    }
-  }
-  std::vector<jetmarkdown::EditorLine> lines;
-  if (lineBlocks != nullptr) {
-    const jsize length = env->GetArrayLength(lineBlocks);
-    std::vector<jint> values(static_cast<size_t>(length));
-    if (length > 0) {
-      env->GetIntArrayRegion(lineBlocks, 0, length, values.data());
-    }
-    for (jsize i = 0; i + 1 < length; i += 2) {
-      lines.push_back(
-          {static_cast<jetmarkdown::EditorBlockType>(values[i]),
-           static_cast<uint8_t>(values[i + 1])});
-    }
-  }
-  // Link URLs cross as one newline-joined blob (URLs cannot contain '\n').
-  std::vector<jetmarkdown::LinkRun> links;
-  if (linkRanges != nullptr) {
-    const jsize length = env->GetArrayLength(linkRanges);
-    std::vector<jint> values(static_cast<size_t>(length));
-    if (length > 0) {
-      env->GetIntArrayRegion(linkRanges, 0, length, values.data());
-    }
-    const std::string urls = toStdString(env, linkUrls);
-    size_t urlStart = 0;
-    for (jsize i = 0; i + 1 < length; i += 2) {
-      const size_t urlEnd = urls.find('\n', urlStart);
-      links.push_back(
-          {static_cast<uint32_t>(values[i]),
-           static_cast<uint32_t>(values[i + 1]),
-           urls.substr(urlStart, urlEnd == std::string::npos ? std::string::npos
-                                                             : urlEnd - urlStart)});
-      urlStart = urlEnd == std::string::npos ? urls.size() : urlEnd + 1;
-    }
-  }
-  const std::string result = jetmarkdown::markdownFromEditor(
-      toStdString(env, text), styledRuns, lines, links);
-  return toByteArray(
-      env, reinterpret_cast<const uint8_t*>(result.data()), result.size());
-}
-
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_jetmarkdown_JetMarkdownNative_editorFromMarkdownContent(
-    JNIEnv* env,
-    jclass,
-    jbyteArray markdown) {
-  const jetmarkdown::EditorDocument document =
-      jetmarkdown::editorFromMarkdown(toStdString(env, markdown));
-  // [int32 runCount][runCount x (start, end, flags)][int32 lineCount]
-  // [lineCount x (type, level)][utf8 text], little-endian.
-  std::vector<uint8_t> bytes;
-  bytes.reserve(
-      8 + document.runs.size() * 12 + document.lines.size() * 8 +
-      document.text.size());
-  const auto push32 = [&bytes](uint32_t value) {
-    bytes.push_back(static_cast<uint8_t>(value & 0xFF));
-    bytes.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
-    bytes.push_back(static_cast<uint8_t>((value >> 16) & 0xFF));
-    bytes.push_back(static_cast<uint8_t>((value >> 24) & 0xFF));
-  };
-  push32(static_cast<uint32_t>(document.runs.size()));
-  for (const jetmarkdown::StyledRun& run : document.runs) {
-    push32(run.start);
-    push32(run.end);
-    push32(run.flags);
-  }
-  push32(static_cast<uint32_t>(document.lines.size()));
-  for (const jetmarkdown::EditorLine& line : document.lines) {
-    push32(static_cast<uint32_t>(line.type));
-    push32(line.level);
-  }
-  push32(static_cast<uint32_t>(document.links.size()));
-  for (const jetmarkdown::LinkRun& link : document.links) {
-    push32(link.start);
-    push32(link.end);
-    push32(static_cast<uint32_t>(link.url.size()));
-  }
-  for (const jetmarkdown::LinkRun& link : document.links) {
-    bytes.insert(bytes.end(), link.url.begin(), link.url.end());
-  }
-  bytes.insert(bytes.end(), document.text.begin(), document.text.end());
   return toByteArray(env, bytes.data(), bytes.size());
 }
 

@@ -17,9 +17,6 @@ clang++ -std=c++17 -O1 -Wall -Wextra \
   ../core/InlineExtensions.cpp \
   ../core/AstJson.cpp \
   ../core/AstSerializer.cpp \
-  ../core/AstToMarkdown.cpp \
-  ../core/EditorText.cpp \
-  ../core/EditorRuns.cpp \
   "$BUILD_DIR/md4c.o"
 
 "$BUILD_DIR/parser_tests"

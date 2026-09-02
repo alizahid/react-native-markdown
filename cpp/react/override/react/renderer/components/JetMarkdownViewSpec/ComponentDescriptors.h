@@ -7,15 +7,11 @@
 
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
-#include "../../../../../JetMarkdownEditorShadowNode.h"
 #include "../../../../../JetMarkdownShadowNode.h"
 
 namespace facebook::react {
 
 using JetMarkdownViewComponentDescriptor =
     ConcreteComponentDescriptor<JetMarkdownShadowNode>;
-
-using JetMarkdownEditorComponentDescriptor =
-    ConcreteComponentDescriptor<JetMarkdownEditorShadowNode>;
 
 } // namespace facebook::react

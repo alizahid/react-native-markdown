@@ -1,7 +1,7 @@
 {
   "name": "react-native-jet-markdown",
   "version": "0.2.1",
-  "description": "High-performance native Markdown renderer and editor for React Native",
+  "description": "High-performance native Markdown renderer for React Native",
   "keywords": [
     "react-native",
     "ios",
@@ -93,9 +93,6 @@
     },
     "ios": {
       "components": {
-        "JetMarkdownEditor": {
-          "className": "JetMarkdownEditor"
-        },
         "JetMarkdownView": {
           "className": "JetMarkdownView"
         }

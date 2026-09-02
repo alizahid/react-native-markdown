@@ -73,7 +73,7 @@ Narrow (stretches to fill):
 | Name | Role |
 |------|------|
 | Ali | Author |
-| Kit | Editor |
+| Kit | Reviewer |
 
 Wide (scrolls horizontally):
 
