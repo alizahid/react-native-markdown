@@ -33,6 +33,8 @@ cd ios && pod install
 
 Requires React Native 0.86+ with the New Architecture (Fabric).
 
+> **Android support is experimental.** The Android renderer implements the same feature set as iOS, but it has had far less real-world use. Expect rough edges and please [report](https://github.com/alizahid/react-native-jet-markdown/issues) anything that renders differently from iOS.
+
 ## Usage
 
 ```tsx
@@ -161,6 +163,7 @@ You may notice styles ship natively as one `stylesJson` string instead of a stru
 ## Platform notes & limitations
 
 - New Architecture (Fabric) only; React Native 0.86+.
+- Android support is experimental; iOS is the reference implementation.
 - `textDecorationStyle`/`textDecorationColor` render fully on iOS; Android draws plain underline/strikethrough.
 - `borderCurve: 'continuous'` is iOS-only.
 - `fontVariant` supports `tabular-nums`, `proportional-nums`, `oldstyle-nums`, `lining-nums`, `small-caps` (font support required).
