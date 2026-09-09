@@ -73,19 +73,28 @@ const styles: MarkdownStyles = mergeStyles({
 | Prop | Type | Description |
 | --- | --- | --- |
 | `markdown` | `string` | The markdown source. |
-| `style` | `MarkdownContainerStyle` | Main container style: `backgroundColor`, `padding`/`padding{Left,Right,Top,Bottom}`, `gap` (spacing between blocks), plus base text styles (`fontSize`, `fontWeight`, `fontFamily`, `color`, `fontVariant`, `textDecoration*`) that cascade into every text element unless overridden per-element via `styles`. Element builtins survive the cascade: heading sizes/weight stay unless `headings.hN` overrides, and code blocks keep their monospace font unless `codeBlock` overrides. For outer layout (margin, width, flex), wrap the viewer in a `View`. |
-| `styles` | `MarkdownStyles` | Per-element styles (below). Omitted = fully plain output (no colors, boxes, heading sizes — only bold/italic runs, monospace code, list markers, and the spoiler cover). Pass the exported `defaultStyles` for the classic look, or `mergeStyles(overrides)` for defaults + your changes. Hoist to module scope or memoize. |
-| `images` | `{ url, width, height }[]` | Pre-sizing data. Listed images lay out at their final size immediately — zero layout shift. Unlisted images render a styled full-width, 200pt-tall placeholder, then snap to their real aspect once loaded. Loading runs on SDWebImage (iOS) and Glide (Android) — the same cores expo-image uses — with memory + disk caches, request dedupe, and animated GIF playback (plus APNG on iOS). |
+| `style` | `MarkdownContainerStyle` | Container box (`backgroundColor`, `padding*`, `gap`) plus base text styles that cascade into every element. See [Container style](#container-style). |
+| `styles` | `MarkdownStyles` | Per-element styles. See [Styling](#styling). Hoist to module scope or memoize. |
+| `images` | `{ url, width, height }[]` | Pre-sizing data. Listed images lay out at their final size immediately (zero layout shift); unlisted ones render a full-width, 200pt-tall placeholder and snap to their real aspect once loaded. |
+| `allowFontScaling` | `boolean` | Scale all text, including `lineHeight`, with the system font size setting. Default `true`. |
 | `onLinkPress` | `({ url }) => void` | Link or mention tapped. Mentions arrive with their scheme (e.g. `users://ali`). |
 | `onLinkLongPress` | `({ url }) => void` | Link long-pressed. |
 | `onImagePress` | `({ url, x, y, width, height }) => void` | Image tapped. `width`/`height` are the rendered size and `x`/`y` the position relative to the screen (dp) — everything a lightbox needs for a zoom-from-thumbnail transition. |
 
 ## Styling
 
-The viewer ships **unstyled by default**. Two exports cover the common cases:
+The viewer ships **unstyled by default**: with no `styles` prop the output is plain text (only bold/italic runs, monospace code, list markers, and the spoiler cover survive). Two exports cover the common cases:
 
 - `defaultStyles` — a plain `MarkdownStyles` object with the classic markdown look (heading scale, blue links, code boxes, quote bar, table separators). It's just data: spread it, fork it, or use it as a reference.
 - `mergeStyles(overrides)` — deep-merges your overrides into `defaultStyles` (element sections merge key-by-key, heading levels individually).
+
+### Container style
+
+The `style` prop styles the container itself: `backgroundColor`, `padding` (+ `paddingHorizontal`/`paddingVertical` and per-side), and `gap` (spacing between blocks; wins over `styles.gap`). Text keys on it (`fontSize`, `fontWeight`, `fontFamily`, `color`, `lineHeight`, `fontVariant`, `textDecoration*`) are the base of the cascade: every element inherits them unless its own section overrides. Element builtins survive the cascade — heading sizes and weights stay unless `headings.hN` overrides, and code keeps its monospace font unless `codeBlock` overrides.
+
+All of these are measured natively. For outer layout (margin, width, flex), wrap the viewer in a `View`.
+
+### Element styles
 
 Two shared shapes compose every element style:
 
@@ -127,6 +136,10 @@ Each column gets its natural (unwrapped) width, clamped to `[minColumnWidth, max
 
 Mentions are plain markdown links with custom schemes — `[@ali](users://ali)`, `[#general](channels://general)` — classified by the `mention.variants` regexes and styled accordingly. Presses arrive through `onLinkPress`; branch on the URL scheme.
 
+### Images
+
+A paragraph containing only an image renders as a block image, aspect-fit to the container width. Pass `images` to pre-size known images and avoid layout shift. Loading runs on SDWebImage (iOS) and Glide (Android) — the same cores expo-image uses — with memory + disk caches, request dedupe, and animated GIF playback (plus APNG on iOS).
+
 ## Using in lists
 
 Rendering hundreds of viewers in FlatList / FlashList / LegendList is a first-class use case:
@@ -167,7 +180,6 @@ You may notice styles ship natively as one `stylesJson` string instead of a stru
 - `textDecorationStyle`/`textDecorationColor` render fully on iOS; Android draws plain underline/strikethrough.
 - `borderCurve: 'continuous'` is iOS-only.
 - `fontVariant` supports `tabular-nums`, `proportional-nums`, `oldstyle-nums`, `lining-nums`, `small-caps` (font support required).
-- `allowFontScaling` (default `true`) scales all text — including `lineHeight` — with the system font size setting.
 - Spoilers and inline formatting inside link labels stay literal; spoilers inside table cells are unsupported (the `|` delimiter conflicts).
 - Code blocks render plain monospace (no syntax highlighting).
 - The viewer fills the width it is given and sizes its own height. Under an unconstrained width (a horizontal `ScrollView`, `alignSelf: 'flex-start'`) it has nothing to wrap against and renders empty — give it a definite width.
@@ -178,14 +190,6 @@ Development of react-native-jet-markdown is supported by:
 
 <table>
   <tr>
-    <td align="center" width="200">
-      <a href="https://duet.so">
-        <img alt="Duet" src="https://github.com/alizahid/react-native-jet-markdown/blob/main/.github/duet.png?raw=true" width="96"><br>
-        <b>Duet</b>
-      </a>
-      <br>
-      <sub>Your AI coworker that runs your business 24/7</sub>
-    </td>
     <td align="center" width="200">
       <a href="https://acorn.blue">
         <img alt="Acorn" src="https://github.com/alizahid/react-native-jet-markdown/blob/main/.github/acorn.png?raw=true" width="96"><br>
