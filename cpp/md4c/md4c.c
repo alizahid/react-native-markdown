@@ -2055,8 +2055,21 @@ md_is_link_destination_B(MD_CTX* ctx, OFF beg, OFF max_end, OFF* p_end,
             continue;
         }
 
-        if(ISWHITESPACE(off) || ISCNTRL(off))
+        if(ISCNTRL(off))
             break;
+
+        /* JETMARKDOWN PATCH: Reddit (snudown) allows spaces inside link
+         * destinations. Whitespace ends the destination only when what
+         * follows is a title opener, the closing ')' or the end. */
+        if(ISWHITESPACE(off)) {
+            OFF tmp = off;
+            while(tmp < max_end  &&  ISWHITESPACE(tmp))
+                tmp++;
+            if(tmp >= max_end  ||  ISANYOF(tmp, _T("\"')")))
+                break;
+            off = tmp;
+            continue;
+        }
 
         /* Link destination may include balanced pairs of unescaped '(' ')'.
          * Note we limit the maximal nesting level by 32 to protect us from

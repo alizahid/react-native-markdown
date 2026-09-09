@@ -319,6 +319,11 @@ int onEnterSpan(MD_SPANTYPE type, void* detail, void* userdata) {
       auto* d = static_cast<MD_SPAN_A_DETAIL*>(detail);
       Node* node = state->push(NodeType::Link);
       node->url = attributeToString(d->href);
+      // md4c (patched) lets Reddit-style spaces through in destinations;
+      // encode them so the URL is openable as-is.
+      for (size_t i = 0; (i = node->url.find(' ', i)) != std::string::npos; i += 3) {
+        node->url.replace(i, 1, "%20");
+      }
       break;
     }
     case MD_SPAN_IMG: {
@@ -443,7 +448,8 @@ std::unique_ptr<MarkdownDocument> parseMarkdown(const std::string& markdown) {
 
   MD_PARSER parser = {};
   parser.abi_version = 0;
-  parser.flags = MD_FLAG_TABLES | MD_FLAG_PERMISSIVEAUTOLINKS | MD_FLAG_NOHTML;
+  parser.flags = MD_FLAG_TABLES | MD_FLAG_PERMISSIVEAUTOLINKS | MD_FLAG_NOHTML |
+      MD_FLAG_PERMISSIVEATXHEADERS; // Reddit accepts "###Heading"
   parser.enter_block = onEnterBlock;
   parser.leave_block = onLeaveBlock;
   parser.enter_span = onEnterSpan;

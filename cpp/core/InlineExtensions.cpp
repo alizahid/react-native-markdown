@@ -278,8 +278,8 @@ void superscriptPass(Node* parent, AstArena& arena) {
 }
 
 void process(Node* node, AstArena& arena) {
-  if (node->type == NodeType::Link || node->type == NodeType::CodeBlock ||
-      node->type == NodeType::InlineCode || node->type == NodeType::Image) {
+  if (node->type == NodeType::CodeBlock || node->type == NodeType::InlineCode ||
+      node->type == NodeType::Image) {
     return;
   }
   if (!node->children.empty()) {

@@ -212,10 +212,25 @@ int main() {
       "||H~2~O||",
       R"({"type":"spoiler","children":[{"type":"text","text":"H"},{"type":"subscript","children":[{"type":"text","text":"2"}]},{"type":"text","text":"O"}]})");
 
-  expectNotContains(
-      "extensions skip link labels",
-      "[a ||b|| c](https://example.com)",
-      R"("type":"spoiler")");
+  expectContains(
+      "superscript inside link label",
+      "[^(reddit video)](https://example.com)",
+      R"({"type":"link","url":"https://example.com","children":[{"type":"superscript","children":[{"type":"text","text":"reddit video"}]}]})");
+
+  expectContains(
+      "spaces in link destination",
+      "[a](https://example.com/?s=hello world) tail",
+      R"({"type":"link","url":"https://example.com/?s=hello%20world","children":[{"type":"text","text":"a"}]},{"type":"text","text":" tail"})");
+
+  expectContains(
+      "link title still parsed after spaced destination",
+      "[a](https://example.com/x y \"t\")",
+      R"("url":"https://example.com/x%20y")");
+
+  expectContains(
+      "permissive atx heading",
+      "###Title",
+      R"({"type":"heading","level":3,"children":[{"type":"text","text":"Title"}]})");
 
   expectContains(
       "entity translation",
