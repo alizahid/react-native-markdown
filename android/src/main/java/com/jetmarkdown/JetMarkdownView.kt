@@ -10,6 +10,7 @@ import com.facebook.react.uimanager.StateWrapper
 import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.events.Event
 import com.jetmarkdown.render.ContentCache
+import com.jetmarkdown.render.RenderedContent
 import com.jetmarkdown.style.StyleConfig
 import com.jetmarkdown.views.BlockStackView
 import com.jetmarkdown.views.MarkdownHost
@@ -27,12 +28,14 @@ class JetMarkdownView(context: Context) : ViewGroup(context), MarkdownHost {
     set(value) {
       if (field != value) {
         field = value
-        boundKey = null
+        boundLayout = null
         requestLayout()
       }
     }
-  private var boundKey: List<Any>? = null
-  private var boundWidth: Int = 0
+  // Layouts are cached per (content, width, image sizes), and content per
+  // (markdown, styles, font scale, appearance): identity says whether the
+  // bound view tree is still current.
+  private var boundLayout: RenderedContent.WidthLayout? = null
   private val stack = BlockStackView(context)
 
   /** url -> [w, h] dp: from the images prop (wins) and loaded bitmaps. */
@@ -53,8 +56,7 @@ class JetMarkdownView(context: Context) : ViewGroup(context), MarkdownHost {
     stylesJson = ""
     allowFontScaling = true
     stateWrapper = null
-    boundKey = null
-    boundWidth = 0
+    boundLayout = null
     propImageSizes.clear()
     loadedImageSizes.clear()
     revealedSpoilers.clear()
@@ -200,9 +202,9 @@ class JetMarkdownView(context: Context) : ViewGroup(context), MarkdownHost {
     val paddingRightPx = (styles.paddingRight * density).toInt()
     val paddingTopPx = (styles.paddingTop * density).toInt()
     val contentWidthPx = (r - l) - paddingLeftPx - paddingRightPx
-    if (contentWidthPx <= 0 || markdown.isEmpty()) {
+    if (contentWidthPx <= 0) {
       stack.setBlocks(emptyList(), 0f)
-      boundKey = null
+      boundLayout = null
       return
     }
 
@@ -210,10 +212,8 @@ class JetMarkdownView(context: Context) : ViewGroup(context), MarkdownHost {
     val imageSizes = mergedImageSizes()
     val layout = content.layoutFor(contentWidthPx, imageSizes)
 
-    val key = listOf(markdown, stylesJson, imageSizes.hashCode(), fontScale)
-    if (boundKey != key || boundWidth != contentWidthPx) {
-      boundKey = key
-      boundWidth = contentWidthPx
+    if (layout !== boundLayout) {
+      boundLayout = layout
       stack.setBlocks(layout.measured, content.gap)
     }
 

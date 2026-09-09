@@ -41,8 +41,9 @@ static BOOL JMDIsScrollInProgress(UIView *view);
   NSString *_stylesJson;
   BOOL _allowFontScaling;
   JMDBlockStackView *_stack;
-  NSString *_boundKey;
-  CGFloat _boundWidth;
+  // Layout objects are cached per (content, width, image sizes, font
+  // scale), so identity says whether the bound view tree is still current.
+  JMDWidthLayout *_boundLayout;
   // url -> @[w, h] points: from the images prop (wins) and loaded bitmaps.
   NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *_propImageSizes;
   NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *_loadedImageSizes;
@@ -346,7 +347,7 @@ static void JMDSetNeedsDisplayDeep(UIView *view) {
     // Dynamic (platform) colors resolve at draw time for text, but border
     // and background colors snapshot into CGColors when blocks bind; rebind
     // so they re-resolve under the new appearance.
-    _boundKey = nil;
+    _boundLayout = nil;
     [self setNeedsLayout];
     JMDSetNeedsDisplayDeep(self);
   }
@@ -449,7 +450,7 @@ static void JMDSetNeedsDisplayDeep(UIView *view) {
   [super prepareForRecycle];
   _markdown = @"";
   _stylesJson = @"";
-  _boundKey = nil;
+  _boundLayout = nil;
   _state = nullptr;
   [_propImageSizes removeAllObjects];
   [_loadedImageSizes removeAllObjects];
@@ -463,9 +464,9 @@ static void JMDSetNeedsDisplayDeep(UIView *view) {
 
   const CGFloat contentWidth =
       self.bounds.size.width - styles.paddingLeft - styles.paddingRight;
-  if (contentWidth <= 0 || _markdown.length == 0) {
+  if (contentWidth <= 0) {
     [_stack setBlocks:@[] gap:0];
-    _boundKey = nil;
+    _boundLayout = nil;
     return;
   }
 
@@ -477,16 +478,8 @@ static void JMDSetNeedsDisplayDeep(UIView *view) {
   NSDictionary *imageSizes = [self mergedImageSizes];
   JMDWidthLayout *layout = [content layoutForWidth:contentWidth imageSizes:imageSizes];
 
-  // Full contents, not hashes: CFString samples long strings and
-  // NSDictionary.hash is the entry count — both collide.
-  NSString *key = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%.3f",
-                                             _markdown,
-                                             _stylesJson,
-                                             [JMDRenderedContent keyForImageSizes:imageSizes],
-                                             fontScale];
-  if (![key isEqualToString:_boundKey] || _boundWidth != contentWidth) {
-    _boundKey = key;
-    _boundWidth = contentWidth;
+  if (layout != _boundLayout) {
+    _boundLayout = layout;
     [_stack setBlocks:layout.measured gap:content.gap];
   }
 

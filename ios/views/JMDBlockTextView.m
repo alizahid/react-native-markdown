@@ -3,10 +3,12 @@
 #import <CoreText/CoreText.h>
 
 @implementation JMDBlockTextView {
+  // Owned by the measured block and shared with every view bound to the
+  // same cached content (and the layout thread that built it), so it is
+  // never mutated here: spoiler hiding is a draw-time clip.
+  NSTextStorage *_textStorage;
   NSLayoutManager *_layoutManager;
   NSTextContainer *_textContainer;
-  NSTextStorage *_textStorage;
-  NSMutableSet<NSNumber *> *_hiddenSpoilers;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -23,108 +25,82 @@
   return nil;
 }
 
-- (void)setAttributedText:(NSAttributedString *)attributedText {
-  if (![_attributedText isEqualToAttributedString:attributedText]) {
-    _attributedText = [attributedText copy];
-    _layoutManager = nil;
-    // The hiding state lives in the storage, which is rebuilt (with the
-    // original colors) alongside the layout manager.
-    [_hiddenSpoilers removeAllObjects];
+- (void)bindTextStorage:(NSTextStorage *)storage {
+  if (_textStorage != storage) {
+    _textStorage = storage;
+    _layoutManager = storage.layoutManagers.firstObject;
+    _textContainer = _layoutManager.textContainers.firstObject;
     self.isAccessibilityElement = YES;
-    self.accessibilityLabel = attributedText.string;
+    self.accessibilityLabel = storage.string;
     self.accessibilityTraits = UIAccessibilityTraitStaticText;
-    [self setNeedsDisplay];
   }
+  // Spoiler styling and host may change without the storage changing.
+  [self setNeedsDisplay];
 }
 
-// Lazy TextKit stack shared by drawing, overlay geometry, and hit-testing
-// (and configured identically to the measurer's) — one engine, so they can
-// never disagree about line positions.
-- (NSLayoutManager *)layoutManagerForBounds {
-  if (_layoutManager == nil && _attributedText != nil) {
-    _textStorage = [[NSTextStorage alloc] initWithAttributedString:_attributedText];
-    _layoutManager = [NSLayoutManager new];
-    _textContainer =
-        [[NSTextContainer alloc] initWithSize:CGSizeMake(self.bounds.size.width, CGFLOAT_MAX)];
-    _textContainer.lineFragmentPadding = 0;
-    [_layoutManager addTextContainer:_textContainer];
-    [_textStorage addLayoutManager:_layoutManager];
-  } else if (_textContainer != nil &&
-             _textContainer.size.width != self.bounds.size.width) {
-    _textContainer.size = CGSizeMake(self.bounds.size.width, CGFLOAT_MAX);
-  }
-  return _layoutManager;
+- (NSAttributedString *)attributedText {
+  return _textStorage;
 }
 
 - (void)drawRect:(CGRect)rect {
-  NSLayoutManager *layoutManager = [self layoutManagerForBounds];
-  if (layoutManager == nil) {
+  if (_layoutManager == nil || _textStorage.length == 0) {
     return;
   }
-  // One engine for everything: the same layout manager that positions the
-  // overlays also draws the glyphs. NSStringDrawing typesets separately and
-  // disagrees with NSLayoutManager about font leading under a lineHeight
-  // cap (fonts with a nonzero line gap drift ~gap pt per line), which
-  // misaligned overlays on wrapped lines.
-  [self syncSpoilerHiding:layoutManager];
-  [self drawRunBackgrounds:layoutManager];
-  const NSRange glyphRange =
-      [layoutManager glyphRangeForTextContainer:self->_textContainer];
-  [layoutManager drawBackgroundForGlyphRange:glyphRange atPoint:CGPointZero];
-  [layoutManager drawGlyphsForGlyphRange:glyphRange atPoint:CGPointZero];
-  [self drawSpoilerCovers:layoutManager];
+  // One engine for everything: the layout manager that measured the block
+  // also positions the overlays and draws the glyphs. NSStringDrawing
+  // typesets separately and disagrees with NSLayoutManager about font
+  // leading under a lineHeight cap (fonts with a nonzero line gap drift
+  // ~gap pt per line), which misaligned overlays on wrapped lines.
+  const NSRange glyphRange = [_layoutManager glyphRangeForTextContainer:_textContainer];
+  [self drawRunBackgrounds];
+  CGContextRef context = UIGraphicsGetCurrentContext();
+  CGContextSaveGState(context);
+  [self clipHiddenSpoilers:context];
+  [_layoutManager drawBackgroundForGlyphRange:glyphRange atPoint:CGPointZero];
+  [_layoutManager drawGlyphsForGlyphRange:glyphRange atPoint:CGPointZero];
+  CGContextRestoreGState(context);
+  [self drawSpoilerCovers];
 }
 
-// Unrevealed spoiler text draws fully transparent — the cover hugs the
-// text, so glyphs would leak around it if drawn. Colors mutate on the
-// shared storage (color-only edits don't reflow); originals restore from
-// the immutable _attributedText on reveal.
-- (void)syncSpoilerHiding:(NSLayoutManager *)layoutManager {
-  if (self.host == nil || _attributedText.length == 0 || _textStorage == nil) {
+// Unrevealed spoiler text is hidden by clipping its line-box slices out of
+// the glyph draw (the cover hugs the text, so glyphs would leak around it).
+// Purely draw-time, per-view state; the shared storage stays untouched.
+- (void)clipHiddenSpoilers:(CGContextRef)context {
+  if (self.host == nil) {
     return;
   }
-  if (_hiddenSpoilers == nil) {
-    _hiddenSpoilers = [NSMutableSet new];
-  }
-  [_textStorage beginEditing];
-  [_attributedText
+  CGMutablePathRef hidden = CGPathCreateMutable();
+  __block BOOL any = NO;
+  [_textStorage
       enumerateAttribute:JMDSpoilerIDAttributeName
-                 inRange:NSMakeRange(0, _attributedText.length)
+                 inRange:NSMakeRange(0, _textStorage.length)
                  options:0
               usingBlock:^(NSNumber *spoilerId, NSRange range, BOOL *stop) {
-                if (spoilerId == nil) {
+                if (spoilerId == nil ||
+                    [self.host isSpoilerRevealed:spoilerId.integerValue]) {
                   return;
                 }
-                const BOOL shouldHide =
-                    ![self.host isSpoilerRevealed:spoilerId.integerValue];
-                const BOOL isHidden =
-                    [self->_hiddenSpoilers containsObject:spoilerId];
-                if (shouldHide == isHidden) {
-                  return;
-                }
-                if (shouldHide) {
-                  [self->_textStorage addAttributes:@{
-                    NSForegroundColorAttributeName : UIColor.clearColor,
-                    NSUnderlineColorAttributeName : UIColor.clearColor,
-                    NSStrikethroughColorAttributeName : UIColor.clearColor,
-                  }
-                                              range:range];
-                  [self->_hiddenSpoilers addObject:spoilerId];
-                } else {
-                  [self->_attributedText
-                      enumerateAttributesInRange:range
-                                         options:0
-                                      usingBlock:^(NSDictionary *attrs,
-                                                   NSRange subRange,
-                                                   BOOL *stopInner) {
-                                        [self->_textStorage
-                                            setAttributes:attrs
-                                                    range:subRange];
-                                      }];
-                  [self->_hiddenSpoilers removeObject:spoilerId];
-                }
+                const NSRange glyphs =
+                    [self->_layoutManager glyphRangeForCharacterRange:range
+                                                 actualCharacterRange:nil];
+                [self->_layoutManager
+                    enumerateEnclosingRectsForGlyphRange:glyphs
+                                withinSelectedGlyphRange:NSMakeRange(NSNotFound, 0)
+                                         inTextContainer:self->_textContainer
+                                              usingBlock:^(CGRect rect, BOOL *stopInner) {
+                                                // Padded past side bearings
+                                                // and italic overhang.
+                                                CGPathAddRect(hidden, NULL,
+                                                              CGRectInset(rect, -2, 0));
+                                                any = YES;
+                                              }];
               }];
-  [_textStorage endEditing];
+  if (any) {
+    CGContextAddRect(context, self.bounds);
+    CGContextAddPath(context, hidden);
+    CGContextEOClip(context);
+  }
+  CGPathRelease(hidden);
 }
 
 // A chip inside an unrevealed spoiler would peek around the cover.
@@ -133,7 +109,7 @@
     return NO;
   }
   __block BOOL hidden = NO;
-  [_attributedText
+  [_textStorage
       enumerateAttribute:JMDSpoilerIDAttributeName
                  inRange:range
                  options:0
@@ -200,49 +176,45 @@ static const CGFloat JMDInkPad = 2;
 // Per-line overlay rects for a character range. Whitespace-only segments
 // have no ink and produce no rect.
 - (NSArray<NSValue *> *)inkRectsForRange:(NSRange)range
-                           layoutManager:(NSLayoutManager *)layoutManager
                                  padLeft:(CGFloat)padLeft
                                 padRight:(CGFloat)padRight {
   CGContextRef context = UIGraphicsGetCurrentContext();
   // CTLineGetImageBounds reports bounds relative to the context's current
-  // text position, and NSStringDrawing leaves it wherever the last drawn
-  // line ended.
+  // text position.
   CGContextSetTextPosition(context, 0, 0);
   const CGFloat maxWidth = self.bounds.size.width;
   const CGFloat maxHeight = self.bounds.size.height;
   const NSRange glyphRange =
-      [layoutManager glyphRangeForCharacterRange:range actualCharacterRange:nil];
+      [_layoutManager glyphRangeForCharacterRange:range actualCharacterRange:nil];
   NSMutableArray<NSValue *> *lineRects = [NSMutableArray new];
   NSUInteger glyphIndex = glyphRange.location;
   while (glyphIndex < NSMaxRange(glyphRange)) {
     NSRange lineGlyphRange;
     const CGRect fragment =
-        [layoutManager lineFragmentRectForGlyphAtIndex:glyphIndex
-                                        effectiveRange:&lineGlyphRange];
+        [_layoutManager lineFragmentRectForGlyphAtIndex:glyphIndex
+                                         effectiveRange:&lineGlyphRange];
     const NSRange lineRange = NSIntersectionRange(lineGlyphRange, glyphRange);
     if (lineRange.length == 0) {
       break;
     }
     const NSRange charRange =
-        [layoutManager characterRangeForGlyphRange:lineRange actualGlyphRange:nil];
+        [_layoutManager characterRangeForGlyphRange:lineRange actualGlyphRange:nil];
     const CGPoint startLocation =
-        [layoutManager locationForGlyphAtIndex:lineRange.location];
+        [_layoutManager locationForGlyphAtIndex:lineRange.location];
     // The typesetter already folds NSBaselineOffset (lineHeight centering,
     // sup/sub shifts) into the glyph location.
     const CGFloat baselineY = fragment.origin.y + startLocation.y;
     const CGFloat penX = fragment.origin.x + startLocation.x;
 
     CTLineRef line = CTLineCreateWithAttributedString(
-        (__bridge CFAttributedStringRef)[self->_attributedText
-            attributedSubstringFromRange:charRange]);
+        (__bridge CFAttributedStringRef)[_textStorage attributedSubstringFromRange:charRange]);
     const CGRect ink = CTLineGetImageBounds(line, context);
     CFRelease(line);
     if (!CGRectIsNull(ink) && ink.size.width > 0) {
-      UIFont *font =
-          [self->_attributedText attribute:NSFontAttributeName
-                                   atIndex:charRange.location
-                            effectiveRange:nil]
-              ?: [UIFont systemFontOfSize:UIFont.systemFontSize];
+      UIFont *font = [_textStorage attribute:NSFontAttributeName
+                                     atIndex:charRange.location
+                              effectiveRange:nil]
+          ?: [UIFont systemFontOfSize:UIFont.systemFontSize];
       const CGFloat top = MAX(baselineY - font.capHeight - JMDInkPad, 0);
       const CGFloat bottom =
           MIN(baselineY - font.descender + JMDInkPad, maxHeight);
@@ -261,15 +233,11 @@ static const CGFloat JMDInkPad = 2;
 }
 
 // Run background chips (inlineCode/link/mention and plain highlights),
-// drawn UNDER the text; enumerates the display copy so chips hidden with
-// their spoiler don't draw.
-- (void)drawRunBackgrounds:(NSLayoutManager *)layoutManager {
-  if (_attributedText.length == 0) {
-    return;
-  }
-  [_attributedText
+// drawn UNDER the text; chips hidden with their spoiler don't draw.
+- (void)drawRunBackgrounds {
+  [_textStorage
       enumerateAttribute:JMDRunBackgroundAttributeName
-                 inRange:NSMakeRange(0, _attributedText.length)
+                 inRange:NSMakeRange(0, _textStorage.length)
                  options:0
               usingBlock:^(JMDRunBackground *chip, NSRange range, BOOL *stop) {
                 if (chip == nil || [self isRangeInsideHiddenSpoiler:range]) {
@@ -277,7 +245,6 @@ static const CGFloat JMDInkPad = 2;
                 }
                 NSArray<NSValue *> *rects = [self
                     inkRectsForRange:range
-                       layoutManager:layoutManager
                              padLeft:chip.padLeft > 0 ? chip.padLeft : JMDInkPad
                             padRight:chip.padRight > 0 ? chip.padRight
                                                        : JMDInkPad];
@@ -289,16 +256,16 @@ static const CGFloat JMDInkPad = 2;
               }];
 }
 
-// Spoiler cover chips, drawn OVER the (transparent) text until revealed.
+// Spoiler cover chips, drawn OVER the (clipped-out) text until revealed.
 // Same ink geometry as the run backgrounds so covers and backgrounds look
 // identical.
-- (void)drawSpoilerCovers:(NSLayoutManager *)layoutManager {
-  if (_attributedText.length == 0 || self.host == nil) {
+- (void)drawSpoilerCovers {
+  if (self.host == nil) {
     return;
   }
-  [_attributedText
+  [_textStorage
       enumerateAttribute:JMDSpoilerIDAttributeName
-                 inRange:NSMakeRange(0, _attributedText.length)
+                 inRange:NSMakeRange(0, _textStorage.length)
                  options:0
               usingBlock:^(NSNumber *spoilerId, NSRange range, BOOL *stop) {
                 if (spoilerId == nil ||
@@ -306,10 +273,7 @@ static const CGFloat JMDInkPad = 2;
                   return;
                 }
                 NSArray<NSValue *> *rects =
-                    [self inkRectsForRange:range
-                             layoutManager:layoutManager
-                                   padLeft:JMDInkPad
-                                  padRight:JMDInkPad];
+                    [self inkRectsForRange:range padLeft:JMDInkPad padRight:JMDInkPad];
                 [self.spoilerColor ?: UIColor.darkGrayColor setFill];
                 for (NSValue *value in rects) {
                   [JMDChipPath(value.CGRectValue, self.spoilerRadius,
@@ -319,22 +283,21 @@ static const CGFloat JMDInkPad = 2;
 }
 
 - (nullable NSDictionary *)attributesAtPoint:(CGPoint)point {
-  NSLayoutManager *layoutManager = [self layoutManagerForBounds];
-  if (layoutManager == nil || _attributedText.length == 0) {
+  if (_layoutManager == nil || _textStorage.length == 0) {
     return nil;
   }
-  const NSUInteger glyphIndex = [layoutManager glyphIndexForPoint:point
-                                                  inTextContainer:_textContainer];
-  const CGRect glyphRect = [layoutManager boundingRectForGlyphRange:NSMakeRange(glyphIndex, 1)
-                                                    inTextContainer:_textContainer];
+  const NSUInteger glyphIndex = [_layoutManager glyphIndexForPoint:point
+                                                   inTextContainer:_textContainer];
+  const CGRect glyphRect = [_layoutManager boundingRectForGlyphRange:NSMakeRange(glyphIndex, 1)
+                                                     inTextContainer:_textContainer];
   if (!CGRectContainsPoint(CGRectInset(glyphRect, -8, -4), point)) {
     return nil;
   }
-  const NSUInteger charIndex = [layoutManager characterIndexForGlyphAtIndex:glyphIndex];
-  if (charIndex >= _attributedText.length) {
+  const NSUInteger charIndex = [_layoutManager characterIndexForGlyphAtIndex:glyphIndex];
+  if (charIndex >= _textStorage.length) {
     return nil;
   }
-  return [_attributedText attributesAtIndex:charIndex effectiveRange:nil];
+  return [_textStorage attributesAtIndex:charIndex effectiveRange:nil];
 }
 
 @end

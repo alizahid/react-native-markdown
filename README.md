@@ -167,6 +167,7 @@ You may notice styles ship natively as one `stylesJson` string instead of a stru
 - `allowFontScaling` (default `true`) scales all text — including `lineHeight` — with the system font size setting.
 - Spoilers and inline formatting inside link labels stay literal; spoilers inside table cells are unsupported (the `|` delimiter conflicts).
 - Code blocks render plain monospace (no syntax highlighting).
+- The viewer fills the width it is given and sizes its own height. Under an unconstrained width (a horizontal `ScrollView`, `alignSelf: 'flex-start'`) it has nothing to wrap against and renders empty — give it a definite width.
 
 ## Sponsors
 

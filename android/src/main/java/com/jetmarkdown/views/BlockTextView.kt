@@ -54,6 +54,8 @@ class BlockTextView(context: Context) : View(context) {
 
   fun setBlock(block: Block.Text) {
     textBlock = block
+    // Spoiler styling may change without the layout changing.
+    invalidate()
   }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

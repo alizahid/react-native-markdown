@@ -17,45 +17,63 @@ class BlockStackView(context: Context) : ViewGroup(context) {
 
   var host: MarkdownHost? = null
 
-  private fun unbindImages(group: android.view.ViewGroup) {
-    for (index in 0 until group.childCount) {
-      when (val child = group.getChildAt(index)) {
-        is MarkdownImageView -> child.unbind()
-        is android.view.ViewGroup -> unbindImages(child)
-      }
+  // Discard hook for views dropped for good: stop in-flight image requests
+  // from delivering into a recycled host.
+  private fun unbindImages(view: View) {
+    when (view) {
+      is MarkdownImageView -> view.unbind()
+      is ViewGroup -> for (index in 0 until view.childCount) unbindImages(view.getChildAt(index))
     }
   }
 
+  /**
+   * Rebinds in place: a child of the right kind at the same index is reused,
+   * anything else is replaced. List recycling rebinds whole trees, so the
+   * common case (same block kinds, different content) allocates nothing.
+   */
   fun setBlocks(blocks: List<MeasuredBlock>, gap: Float) {
-    unbindImages(this)
     measured = blocks
     gapPx = gap
-    removeAllViews()
-    for (block in blocks) {
-      addView(createView(block))
+    blocks.forEachIndexed { index, block ->
+      val old = getChildAt(index)
+      val view = bindView(old, block)
+      if (view !== old) {
+        if (old != null) {
+          unbindImages(old)
+          removeViewAt(index)
+        }
+        addView(view, index)
+      }
+    }
+    while (childCount > blocks.size) {
+      val extra = getChildAt(childCount - 1)
+      unbindImages(extra)
+      removeViewAt(childCount - 1)
     }
     requestLayout()
   }
 
-  private fun createView(measuredBlock: MeasuredBlock): View {
+  private fun bindView(old: View?, measuredBlock: MeasuredBlock): View {
     return when (val block = measuredBlock.block) {
-      is Block.Text -> BlockTextView(context).apply {
+      is Block.Text -> (old as? BlockTextView ?: BlockTextView(context)).apply {
         this.host = this@BlockStackView.host
         setBlock(block)
         measuredBlock.textLayout?.let(::setTextLayout)
       }
-      is Block.Code -> CodeBlockView(context).apply { bind(measuredBlock, block) }
-      is Block.Quote -> QuoteView(context).apply {
+      is Block.Code -> (old as? CodeBlockView ?: CodeBlockView(context)).apply {
+        bind(measuredBlock, block)
+      }
+      is Block.Quote -> (old as? QuoteView ?: QuoteView(context)).apply {
         bind(measuredBlock, block, gapPx, this@BlockStackView.host)
       }
-      is Block.ListBlock -> ListBlockView(context).apply {
+      is Block.ListBlock -> (old as? ListBlockView ?: ListBlockView(context)).apply {
         bind(measuredBlock, block, gapPx, this@BlockStackView.host)
       }
-      is Block.Divider -> DividerView(context).apply { color = block.color }
-      is Block.Table -> TableBlockView(context).apply {
+      is Block.Divider -> (old as? DividerView ?: DividerView(context)).apply { color = block.color }
+      is Block.Table -> (old as? TableBlockView ?: TableBlockView(context)).apply {
         bind(measuredBlock, block, this@BlockStackView.host)
       }
-      is Block.Image -> MarkdownImageView(context).apply {
+      is Block.Image -> (old as? MarkdownImageView ?: MarkdownImageView(context)).apply {
         this.host = this@BlockStackView.host
         bind(block)
       }
@@ -228,13 +246,22 @@ class ListBlockView(context: Context) : ViewGroup(context) {
     measured = measuredBlock
     block = list
     gapPx = gap
-    removeAllViews()
+    // Children are (marker, content) pairs; grow/shrink the pair list, then
+    // rebind every pair in place.
+    val needed = measuredBlock.markerLayouts.size * 2
+    while (childCount > needed) {
+      removeViewAt(childCount - 1)
+    }
+    while (childCount < needed) {
+      addView(BlockTextView(context))
+      addView(BlockStackView(context))
+    }
     measuredBlock.markerLayouts.forEachIndexed { index, marker ->
-      addView(BlockTextView(context).apply { setTextLayout(marker) })
-      addView(BlockStackView(context).apply {
+      (getChildAt(index * 2) as BlockTextView).setTextLayout(marker)
+      (getChildAt(index * 2 + 1) as BlockStackView).apply {
         this.host = host
         setBlocks(measuredBlock.rowContents[index], gap)
-      })
+      }
     }
     requestLayout()
   }

@@ -84,12 +84,13 @@
   return layout;
 }
 
-- (CGSize)textSize:(NSAttributedString *)text width:(CGFloat)width {
-  // Measured with TextKit, not NSStringDrawing: boundingRect stops at the
-  // last line's drawn descent, dropping the bottom of the final line box
-  // under a custom lineHeight. The full box keeps overlays (spoiler covers,
-  // run background chips) from being clipped at the view's bottom edge and
-  // matches how RN's <Text> and the Android renderer measure.
+// Lays text out with TextKit, not NSStringDrawing: boundingRect stops at
+// the last line's drawn descent, dropping the bottom of the final line box
+// under a custom lineHeight. The full box keeps overlays (spoiler covers,
+// run background chips) from being clipped at the view's bottom edge and
+// matches how RN's <Text> and the Android renderer measure. The returned
+// storage owns the layout manager; views draw with the same stack.
+- (NSTextStorage *)layoutText:(NSAttributedString *)text width:(CGFloat)width {
   NSTextStorage *storage = [[NSTextStorage alloc] initWithAttributedString:text];
   NSLayoutManager *layoutManager = [NSLayoutManager new];
   NSTextContainer *container = [[NSTextContainer alloc]
@@ -98,8 +99,18 @@
   [layoutManager addTextContainer:container];
   [storage addLayoutManager:layoutManager];
   [layoutManager ensureLayoutForTextContainer:container];
-  const CGRect used = [layoutManager usedRectForTextContainer:container];
+  return storage;
+}
+
+static CGSize JMDUsedSize(NSTextStorage *storage) {
+  NSLayoutManager *layoutManager = storage.layoutManagers.firstObject;
+  const CGRect used =
+      [layoutManager usedRectForTextContainer:layoutManager.textContainers.firstObject];
   return CGSizeMake(ceil(used.size.width), ceil(used.size.height));
+}
+
+- (CGSize)textSize:(NSAttributedString *)text width:(CGFloat)width {
+  return JMDUsedSize([self layoutText:text width:width]);
 }
 
 - (JMDMeasuredBlock *)measureBlock:(JMDBlock *)block
@@ -111,13 +122,17 @@
 
   switch (block.kind) {
     case JMDBlockKindText: {
-      const CGSize size = [self textSize:block.attributedText width:width];
+      NSTextStorage *storage = [self layoutText:block.attributedText width:width];
+      const CGSize size = JMDUsedSize(storage);
+      measured.textStorage = storage;
       measured.height = size.height;
       measured.textHeight = size.height;
       break;
     }
     case JMDBlockKindCode: {
-      const CGSize size = [self textSize:block.attributedText width:CGFLOAT_MAX];
+      NSTextStorage *storage = [self layoutText:block.attributedText width:CGFLOAT_MAX];
+      const CGSize size = JMDUsedSize(storage);
+      measured.textStorage = storage;
       measured.contentWidth = size.width;
       measured.textHeight = size.height;
       measured.height =
@@ -142,11 +157,14 @@
       const CGFloat contentWidth = MAX(width - contentX, 1);
       measured.contentWidth = contentWidth;
       NSMutableArray<NSNumber *> *markerHeights = [NSMutableArray new];
+      NSMutableArray<NSTextStorage *> *markerStorages = [NSMutableArray new];
       NSMutableArray<NSArray<JMDMeasuredBlock *> *> *rowContents = [NSMutableArray new];
       CGFloat height = 0;
       for (NSUInteger i = 0; i < block.rows.count; i++) {
         JMDListRow *row = block.rows[i];
-        const CGSize markerSize = [self textSize:row.marker width:block.markerWidth];
+        NSTextStorage *markerStorage = [self layoutText:row.marker width:block.markerWidth];
+        [markerStorages addObject:markerStorage];
+        const CGSize markerSize = JMDUsedSize(markerStorage);
         NSMutableArray<JMDMeasuredBlock *> *content = [NSMutableArray new];
         for (JMDBlock *child in row.content) {
           [content addObject:[self measureBlock:child width:contentWidth imageSizes:imageSizes]];
@@ -159,6 +177,7 @@
         }
       }
       measured.markerHeights = markerHeights;
+      measured.markerStorages = markerStorages;
       measured.rowContents = rowContents;
       measured.height = height;
       break;
@@ -209,6 +228,7 @@
       }
 
       NSMutableArray<NSNumber *> *rowHeights = [NSMutableArray new];
+      NSMutableArray<NSArray<NSTextStorage *> *> *cellStorages = [NSMutableArray new];
       CGFloat contentHeight = 0;
       for (JMDTableRow *row in block.tableRows) {
         JMDLayoutStyle *rowStyle = row.isHeader ? block.headerRowStyle : block.bodyRowStyle;
@@ -217,10 +237,14 @@
         const CGFloat cellPadV = pad.top + pad.bottom;
         const CGFloat rowExtra = rowStyle.borderTopWidth + rowStyle.borderBottomWidth;
         CGFloat rowHeight = 0;
+        NSMutableArray<NSTextStorage *> *rowStorages = [NSMutableArray new];
         for (NSUInteger column = 0; column < row.cells.count; column++) {
           const CGFloat cellWidth = MAX(columnWidths[column] - cellPadH, 1);
-          rowHeight = MAX(rowHeight, [self textSize:row.cells[column] width:cellWidth].height);
+          NSTextStorage *storage = [self layoutText:row.cells[column] width:cellWidth];
+          [rowStorages addObject:storage];
+          rowHeight = MAX(rowHeight, JMDUsedSize(storage).height);
         }
+        [cellStorages addObject:rowStorages];
         rowHeight += cellPadV + rowExtra;
         [rowHeights addObject:@(rowHeight)];
         contentHeight += rowHeight;
@@ -235,6 +259,7 @@
 
       measured.columnWidths = widths;
       measured.rowHeights = rowHeights;
+      measured.cellStorages = cellStorages;
       measured.contentWidth = contentWidth;
       measured.height = contentHeight + block.layoutStyle.verticalInset;
       break;

@@ -74,13 +74,21 @@ class TableGridView(context: Context) : ViewGroup(context) {
   fun bind(measuredBlock: MeasuredBlock, table: Block.Table, host: MarkdownHost? = null) {
     measured = measuredBlock
     block = table
-    removeAllViews()
+    // One text view per cell, row-major; grow/shrink then rebind in place.
+    val needed = measuredBlock.cellLayouts.sumOf { it.size }
+    while (childCount > needed) {
+      removeViewAt(childCount - 1)
+    }
+    while (childCount < needed) {
+      addView(BlockTextView(context))
+    }
+    var index = 0
     for (row in measuredBlock.cellLayouts) {
       for (cell in row) {
-        addView(BlockTextView(context).apply {
+        (getChildAt(index++) as BlockTextView).apply {
           this.host = host
           setTextLayout(cell)
-        })
+        }
       }
     }
     invalidate()

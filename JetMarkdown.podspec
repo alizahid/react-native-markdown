@@ -11,7 +11,7 @@ Pod::Spec.new do |s|
   s.authors      = package["author"]
 
   s.platforms    = { :ios => min_ios_version_supported }
-  s.source       = { :git => "https://github.com/alizahid/react-native-jet-markdown.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/alizahid/react-native-jet-markdown.git", :tag => "v#{s.version}" }
 
   # Headers are deliberately NOT in source_files. Xcode's project-wide
   # header maps index every pod target's headers BY BASENAME, so adding

@@ -21,6 +21,8 @@
     _rowContents = @[];
     _columnWidths = @[];
     _rowHeights = @[];
+    _markerStorages = @[];
+    _cellStorages = @[];
   }
   return self;
 }

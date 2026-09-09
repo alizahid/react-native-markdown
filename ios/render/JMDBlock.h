@@ -92,6 +92,13 @@ FOUNDATION_EXPORT NSAttributedStringKey const JMDRunBackgroundAttributeName;
 /// Tables: resolved column widths and per-row heights.
 @property (nonatomic, strong) NSArray<NSNumber *> *columnWidths;
 @property (nonatomic, strong) NSArray<NSNumber *> *rowHeights;
+/// TextKit stacks built at measure time (storage owns the layout manager
+/// and container); the views draw with these, so measure and draw never
+/// disagree and text is laid out once. Text/Code: textStorage. Lists:
+/// one per row. Tables: row-major cells.
+@property (nonatomic, strong, nullable) NSTextStorage *textStorage;
+@property (nonatomic, strong) NSArray<NSTextStorage *> *markerStorages;
+@property (nonatomic, strong) NSArray<NSArray<NSTextStorage *> *> *cellStorages;
 @end
 
 NS_ASSUME_NONNULL_END

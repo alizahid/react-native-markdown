@@ -186,7 +186,7 @@ NSArray<NSDictionary *> *featureSettings(NSArray<NSString *> *variants) {
   return features;
 }
 
-UIFont *buildFont(const ResolvedAttrs &attrs) {
+UIFont *buildFontUncached(const ResolvedAttrs &attrs) {
   UIFont *base;
   if (attrs.family.length > 0) {
     UIFontDescriptor *descriptor = [UIFontDescriptor fontDescriptorWithFontAttributes:@{
@@ -226,6 +226,32 @@ UIFont *buildFont(const ResolvedAttrs &attrs) {
   }
   UIFont *font = [UIFont fontWithDescriptor:descriptor size:attrs.fontSize];
   return font ?: base;
+}
+
+// Descriptor matching (family + weight trait, especially for custom
+// families) costs real time and runs once per text run otherwise. UIFont is
+// immutable, NSCache is thread-safe: the layout thread and main thread share
+// one cache.
+UIFont *buildFont(const ResolvedAttrs &attrs) {
+  static NSCache<NSString *, UIFont *> *cache;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    cache = [NSCache new];
+    cache.countLimit = 256;
+  });
+  NSString *key = [NSString stringWithFormat:@"%@\x1f%.2f\x1f%ld\x1f%d\x1f%@",
+                                             attrs.family ?: @"",
+                                             attrs.fontSize,
+                                             (long)attrs.weight,
+                                             attrs.italic ? 1 : 0,
+                                             [attrs.variants componentsJoinedByString:@","] ?: @""];
+  UIFont *cached = [cache objectForKey:key];
+  if (cached != nil) {
+    return cached;
+  }
+  UIFont *font = buildFontUncached(attrs);
+  [cache setObject:font forKey:key];
+  return font;
 }
 
 NSUnderlineStyle decorationMask(NSString *style) {

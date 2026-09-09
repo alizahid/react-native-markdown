@@ -12,7 +12,7 @@
                  fontScale:(CGFloat)fontScale {
   JMDStyleConfig *styles = [JMDStyleConfig configWithJson:stylesJson];
   const CGFloat contentWidth = maxWidth - styles.paddingLeft - styles.paddingRight;
-  if (contentWidth <= 0 || markdown.length == 0) {
+  if (contentWidth <= 0) {
     return 0;
   }
 

@@ -203,7 +203,7 @@ static void JMDApplyBox(UIView *view, JMDLayoutStyle *style) {
     [self addSubview:_scroller];
   }
   JMDApplyBox(self, measured.block.layoutStyle);
-  _text.attributedText = measured.block.attributedText;
+  [_text bindTextStorage:measured.textStorage];
   [self setNeedsLayout];
 }
 
@@ -238,19 +238,22 @@ static void JMDApplyBox(UIView *view, JMDLayoutStyle *style) {
         host:(nullable id<JMDMarkdownHost>)host {
   _measured = measured;
   _gap = gap;
-  for (UIView *subview in [self.subviews copy]) {
-    [subview removeFromSuperview];
+  // Subviews are (marker, content) pairs; grow/shrink the pair list, then
+  // rebind every pair in place.
+  const NSUInteger needed = measured.block.rows.count * 2;
+  while (self.subviews.count > needed) {
+    [self.subviews.lastObject removeFromSuperview];
   }
-  JMDBlock *block = measured.block;
-  for (NSUInteger i = 0; i < block.rows.count; i++) {
-    JMDBlockTextView *marker = [[JMDBlockTextView alloc] initWithFrame:CGRectZero];
-    marker.attributedText = block.rows[i].marker;
-    [self addSubview:marker];
-
-    JMDBlockStackView *content = [[JMDBlockStackView alloc] initWithFrame:CGRectZero];
+  while (self.subviews.count < needed) {
+    [self addSubview:[[JMDBlockTextView alloc] initWithFrame:CGRectZero]];
+    [self addSubview:[[JMDBlockStackView alloc] initWithFrame:CGRectZero]];
+  }
+  for (NSUInteger i = 0; i < measured.block.rows.count; i++) {
+    JMDBlockTextView *marker = (JMDBlockTextView *)self.subviews[i * 2];
+    [marker bindTextStorage:measured.markerStorages[i]];
+    JMDBlockStackView *content = (JMDBlockStackView *)self.subviews[i * 2 + 1];
     content.host = host;
     [content setBlocks:measured.rowContents[i] gap:gap];
-    [self addSubview:content];
   }
   [self setNeedsLayout];
 }

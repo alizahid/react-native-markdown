@@ -22,16 +22,23 @@
 
 - (void)bind:(JMDMeasuredBlock *)measured host:(nullable id<JMDMarkdownHost>)host {
   _measured = measured;
-  for (UIView *subview in [self.subviews copy]) {
-    [subview removeFromSuperview];
+  // One text view per cell, row-major; grow/shrink then rebind in place.
+  NSUInteger needed = 0;
+  for (NSArray<NSTextStorage *> *row in measured.cellStorages) {
+    needed += row.count;
   }
-  JMDBlock *block = measured.block;
-  for (JMDTableRow *row in block.tableRows) {
-    for (NSAttributedString *cell in row.cells) {
-      JMDBlockTextView *view = [[JMDBlockTextView alloc] initWithFrame:CGRectZero];
+  while (self.subviews.count > needed) {
+    [self.subviews.lastObject removeFromSuperview];
+  }
+  while (self.subviews.count < needed) {
+    [self addSubview:[[JMDBlockTextView alloc] initWithFrame:CGRectZero]];
+  }
+  NSUInteger index = 0;
+  for (NSArray<NSTextStorage *> *row in measured.cellStorages) {
+    for (NSTextStorage *cell in row) {
+      JMDBlockTextView *view = (JMDBlockTextView *)self.subviews[index++];
       view.host = host;
-      view.attributedText = cell;
-      [self addSubview:view];
+      [view bindTextStorage:cell];
     }
   }
   [self setNeedsDisplay];
