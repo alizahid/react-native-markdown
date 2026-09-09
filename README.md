@@ -186,20 +186,13 @@ You may notice styles ship natively as one `stylesJson` string instead of a stru
 
 ## Sponsors
 
-Development of react-native-jet-markdown is supported by:
+<p align="center">
+  <a href="https://acorn.blue"><img alt="Acorn" src="https://acorn.blue/images/acorn.png" width="96"></a>
+</p>
 
-<table>
-  <tr>
-    <td align="center" width="200">
-      <a href="https://acorn.blue">
-        <img alt="Acorn" src="https://github.com/alizahid/react-native-jet-markdown/blob/main/.github/acorn.png?raw=true" width="96"><br>
-        <b>Acorn</b>
-      </a>
-      <br>
-      <sub>Reddit for mobile</sub>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  Built for and sponsored by <a href="https://acorn.blue">Acorn</a>, a Reddit client for iOS.
+</p>
 
 ## License
 
